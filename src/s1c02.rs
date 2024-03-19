@@ -1,5 +1,11 @@
+use std::iter::zip;
+
 pub fn xor_buf(a: &[u8], b: &[u8]) -> Option<Vec<u8>> {
-    todo!("xor {:?} and {:?}", a, b);
+    if a.len() != b.len() {
+        return None;
+    }
+
+    Some(zip(a, b).map(|(&x, &y)| x ^ y).collect())
 }
 
 #[cfg(test)]
@@ -18,5 +24,11 @@ mod tests {
         let c = hex::decode(ch).unwrap();
 
         assert_eq!(xor_buf(&a, &b), Some(c));
+    }
+
+    #[test]
+    fn errors() {
+        assert_eq!(xor_buf("123".as_bytes(), "abcd".as_bytes()), None);
+        assert_eq!(xor_buf("1234".as_bytes(), "abc".as_bytes()), None);
     }
 }
