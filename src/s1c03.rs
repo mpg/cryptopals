@@ -10,8 +10,7 @@ pub struct SXorCracked {
 // Cracks a ciphertext encrypted with single-byte XOR,
 // assuming the plaintext is English text.
 //
-// If no key yields a plaintext that's valid UTF-8
-// without any control characters, return None.
+// If no key yields a plaintext that's printable ASCII, return None.
 // Otherwise, return the plaintext whose letter frequencies are
 // the most similar to those of English prose.
 pub fn sxor_crack(ct: &[u8]) -> Option<SXorCracked> {
@@ -42,66 +41,52 @@ fn sxor_try(key: u8, ct: &[u8]) -> Option<SXorCracked> {
 // Decrypt single-byte XOR ciphertext with the given key.
 fn sxor_decrypt(key: u8, ct: &[u8]) -> Option<String> {
     let pt_bytes = ct.iter().map(|x| x ^ key).collect();
+    let pt = String::from_utf8(pt_bytes).ok()?;
 
-    // Reject invalid UTF-8
-    let pt = String::from_utf8(pt_bytes);
-    if pt.is_err() {
-        return None;
+    // Only accept printable ASCII
+    match pt
+        .chars()
+        .all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace())
+    {
+        true => Some(pt),
+        false => None,
     }
-
-    // Reject plaintext containing control chars
-    let pt = pt.unwrap();
-    if pt.chars().any(|c| c.is_control()) {
-        return None;
-    }
-
-    Some(pt)
 }
 
-// Counts each ASCII letter (case-insensitive) in the given text.
-fn letter_counts(text: &str) -> Vec<u32> {
-    let mut counts = vec![0; 27];
+// Frequencies of each ASCII letter (case-insensitive) in the given text.
+// Also spaces.
+fn letter_freqs(text: &str) -> Vec<f32> {
+    let unit = 1.0 / text.len() as f32;
+    let mut freqs = vec![0.0; 27];
     for c in text.chars() {
         match c {
-            'a'..='z' => counts[c as usize - 'a' as usize] += 1,
-            'A'..='Z' => counts[c as usize - 'A' as usize] += 1,
-            ' ' => counts[26] += 1,
+            'a'..='z' => freqs[c as usize - 'a' as usize] += unit,
+            'A'..='Z' => freqs[c as usize - 'A' as usize] += unit,
+            ' ' => freqs[26] += unit,
             _ => (),
         }
     }
-
-    counts
+    freqs
 }
 
 // https://en.wikipedia.org/wiki/Letter_frequency
-// First table, percentages mutiplied by 1000.
-// In last position, expected number of spaces for that many letters.
-// (Sum of all letters: 100119, divided by 5, rounded.)
-const ENGLISH_FREQUENCIES: [u32; 27] = [
-    8200, 1500, 2800, 4300, 12700, 2200, 2000, 6100, 7000, 150, 770, 4000, 2400, 6700, 7500, 1900,
-    95, 6000, 6300, 9100, 2800, 980, 2400, 150, 2000, 74, 20000,
+// Add space - English words are 4.7 letters long on average so let's say 25%.
+// (Should reduce other percentages to make room, boost that one instead,
+// and live with the fact that the vector is not normalized.)
+const ENGLISH_FREQS: [f32; 27] = [
+    8.2, 1.5, 2.8, 4.3, 12.7, 2.2, 2.0, 6.1, 7.0, 0.15, 0.77, 4.0, 2.4, 6.7, 7.5, 1.9, 0.095, 6.0,
+    6.3, 9.1, 2.8, 0.98, 2.4, 0.15, 2.0, 0.074, 25.0,
 ];
 
-// Computes the scalar product of two vectors
-fn scalar_prod(a: &[u32], b: &[u32]) -> u64 {
-    assert_eq!(a.len(), b.len());
-    zip(a, b).map(|(&x, &y)| x as u64 * y as u64).sum()
-}
-
 // Compute a score for letter counts similarity to English text.
-// The score is proportional* to the cosine of the angle between
-// the vector of letter counts and that of expected letter frequencies:
-// the higher the score, the more likely this is English prose.
-// (*No need to fully normalize, we only want to compare scores.)
+//
+// Use the scalar product of the vectors as the score.
+// It's higher when:
+// - the vectors are nearly colinear (that is, similar weights distribution),
+// - the proportion of letters (and space) in the text is higher.
 fn eng_freq_score(text: &str) -> f32 {
-    let counts = letter_counts(text);
-    let norm = scalar_prod(&counts, &counts);
-    if norm == 0 {
-        return 0.0;
-    }
-    let prod = scalar_prod(&counts, &ENGLISH_FREQUENCIES);
-
-    prod as f32 / norm as f32
+    let freqs = letter_freqs(text);
+    zip(freqs, ENGLISH_FREQS).map(|(x, y)| x * y).sum()
 }
 
 #[cfg(test)]
@@ -123,7 +108,8 @@ mod tests {
 
     #[test]
     fn error() {
-        let ct = b"\x00\x20\x40\x60";
+        // one of the bytes will be >= 128 after XORing
+        let ct = b"\x00\x80";
         assert_eq!(sxor_crack(ct), None);
     }
 }
