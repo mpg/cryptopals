@@ -1,5 +1,9 @@
 pub fn rep_xor(key: &[u8], buf: &[u8]) -> Vec<u8> {
-    todo!("encrypt {:?} with repeated {:?}", buf, key);
+    std::iter::repeat(key)
+        .flatten()
+        .zip(buf)
+        .map(|(k, b)| k ^ b)
+        .collect()
 }
 
 #[cfg(test)]
