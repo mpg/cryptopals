@@ -8,8 +8,10 @@ pub fn crack_rep_xor(ct: &[u8]) -> Option<RepXorCracked> {
     todo!("Crack ciphertext of length {}", ct.len());
 }
 
-pub fn hamming_dst(a: &[u8], b: &[u8]) -> usize {
-    todo!("Hamming distance between {:?} and {:?}", a, b);
+pub fn hamming_dst(a: &[u8], b: &[u8]) -> u32 {
+    std::iter::zip(a, b)
+        .map(|(&x, &y)| (x ^ y).count_ones())
+        .sum()
 }
 
 pub fn guess_key_size(ct: &[u8]) -> usize {
@@ -36,7 +38,6 @@ mod tests {
         BASE64_STANDARD.decode(b64).unwrap()
     }
 
-    #[ignore]
     #[test]
     fn step2() {
         let ct = read_ct();
