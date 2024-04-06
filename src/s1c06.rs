@@ -5,31 +5,30 @@ pub struct RepXorCracked {
 }
 
 pub fn crack_rep_xor(ct: &[u8]) -> Option<RepXorCracked> {
-    todo!("Crack ciphertext of length {}", ct.len());
+    let key_size = guess_key_size(ct);
+    todo!("Crack ciphertext now that we now key size is {}", key_size);
 }
 
-pub fn hamming_dst(a: &[u8], b: &[u8]) -> u32 {
-    std::iter::zip(a, b)
-        .map(|(&x, &y)| (x ^ y).count_ones())
-        .sum()
+// Average hamming distance between a char and that one block away.
+// (Equivalent to the recommended method though slightly different.)
+// Don't return f32 as those are not comparable.
+fn avg_hamming_dst(ct: &[u8], bs: usize) -> u32 {
+    let end = ct.len() - bs;
+    (0..end)
+        .map(|i| (ct[i] ^ ct[i + bs]).count_ones())
+        .sum::<u32>()
+        * 100 // preserve some precision
+        / end as u32
 }
 
-pub fn guess_key_size(ct: &[u8]) -> usize {
-    todo!("Guess the key size for ciphertext of length {}", ct.len());
+fn guess_key_size(ct: &[u8]) -> usize {
+    (2..42).min_by_key(|&bs| avg_hamming_dst(ct, bs)).unwrap()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use base64::prelude::*;
-
-    #[test]
-    fn step1() {
-        let a = b"this is a test";
-        let b = b"wokka wokka!!!";
-
-        assert_eq!(hamming_dst(a, b), 37);
-    }
 
     fn read_ct() -> Vec<u8> {
         let filename = "data/06.txt";
@@ -39,13 +38,13 @@ mod tests {
     }
 
     #[test]
-    fn step2() {
+    fn step2_key_size() {
         let ct = read_ct();
         assert_eq!(guess_key_size(&ct), 29);
     }
 
-    #[ignore]
     #[test]
+    #[ignore]
     fn challenge() {
         let ct = read_ct();
         let key = b"Terminator X: Bring the noise".to_vec();
