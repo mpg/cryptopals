@@ -74,8 +74,33 @@ fn letter_freqs(text: &str) -> Vec<f32> {
 // (Should reduce other percentages to make room, boost that one instead,
 // and live with the fact that the vector is not normalized.)
 const ENGLISH_FREQS: [f32; 27] = [
-    8.2, 1.5, 2.8, 4.3, 12.7, 2.2, 2.0, 6.1, 7.0, 0.15, 0.77, 4.0, 2.4, 6.7, 7.5, 1.9, 0.095, 6.0,
-    6.3, 9.1, 2.8, 0.98, 2.4, 0.15, 2.0, 0.074, 25.0,
+    8.2,   // A
+    1.5,   // B
+    2.8,   // C
+    4.3,   // D
+    12.7,  // E
+    2.2,   // F
+    2.0,   // G
+    6.1,   // H
+    7.0,   // I
+    0.15,  // J
+    0.77,  // K
+    4.0,   // L
+    2.4,   // M
+    6.7,   // N
+    7.5,   // O
+    1.9,   // P
+    0.095, // Q
+    6.0,   // R
+    6.3,   // S
+    9.1,   // T
+    2.8,   // U
+    0.98,  // V
+    2.4,   // W
+    0.15,  // X
+    2.0,   // Y
+    0.074, // Z
+    25.0,  // space
 ];
 
 // Compute a score for letter counts similarity to English text.
@@ -111,5 +136,18 @@ mod tests {
         // one of the bytes will be >= 128 after XORing
         let ct = b"\x00\x80";
         assert_eq!(sxor_crack(ct), None);
+    }
+
+    #[test]
+    //#[ignore]
+    fn debug() {
+        let cth = "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736";
+        let ct = hex::decode(cth).unwrap();
+        for key in 0..=255 {
+            if let Some(res) = sxor_try(key, &ct) {
+                println!("{} {:?}", res.score, res.pt);
+            }
+        }
+        assert!(false);
     }
 }
