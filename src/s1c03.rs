@@ -53,65 +53,62 @@ fn sxor_decrypt(key: u8, ct: &[u8]) -> Option<String> {
     }
 }
 
-// Frequencies of each ASCII letter (case-insensitive) in the given text.
-// Also spaces.
-fn letter_freqs(text: &str) -> Vec<f32> {
+// Frequencies of each category: each letter, space, other.
+fn cat_freqs(text: &str) -> Vec<f32> {
     let unit = 1.0 / text.len() as f32;
-    let mut freqs = vec![0.0; 27];
+    let mut freqs = vec![0.0; 28];
     for c in text.chars() {
         match c {
             'a'..='z' => freqs[c as usize - 'a' as usize] += unit,
             'A'..='Z' => freqs[c as usize - 'A' as usize] += unit,
             ' ' => freqs[26] += unit,
-            _ => (),
+            _ => freqs[27] += unit,
         }
     }
     freqs
 }
 
 // https://en.wikipedia.org/wiki/Letter_frequency
-// Add space - English words are 4.7 letters long on average so let's say 25%.
-// (Should reduce other percentages to make room, boost that one instead,
-// and live with the fact that the vector is not normalized.)
-const ENGLISH_FREQS: [f32; 27] = [
-    8.2,   // A
-    1.5,   // B
-    2.8,   // C
-    4.3,   // D
-    12.7,  // E
-    2.2,   // F
-    2.0,   // G
-    6.1,   // H
-    7.0,   // I
-    0.15,  // J
-    0.77,  // K
-    4.0,   // L
-    2.4,   // M
-    6.7,   // N
-    7.5,   // O
-    1.9,   // P
-    0.095, // Q
-    6.0,   // R
-    6.3,   // S
-    9.1,   // T
-    2.8,   // U
-    0.98,  // V
-    2.4,   // W
-    0.15,  // X
-    2.0,   // Y
-    0.074, // Z
-    25.0,  // space
+// Guesstimate space at 20% and other at 5%, leaving 75% letters.
+const ENGLISH_FREQS: [f32; 28] = [
+    8.2 * 0.75 / 100.0,   // A
+    1.5 * 0.75 / 100.0,   // B
+    2.8 * 0.75 / 100.0,   // C
+    4.3 * 0.75 / 100.0,   // D
+    12.7 * 0.75 / 100.0,  // E
+    2.2 * 0.75 / 100.0,   // F
+    2.0 * 0.75 / 100.0,   // G
+    6.1 * 0.75 / 100.0,   // H
+    7.0 * 0.75 / 100.0,   // I
+    0.15 * 0.75 / 100.0,  // J
+    0.77 * 0.75 / 100.0,  // K
+    4.0 * 0.75 / 100.0,   // L
+    2.4 * 0.75 / 100.0,   // M
+    6.7 * 0.75 / 100.0,   // N
+    7.5 * 0.75 / 100.0,   // O
+    1.9 * 0.75 / 100.0,   // P
+    0.095 * 0.75 / 100.0, // Q
+    6.0 * 0.75 / 100.0,   // R
+    6.3 * 0.75 / 100.0,   // S
+    9.1 * 0.75 / 100.0,   // T
+    2.8 * 0.75 / 100.0,   // U
+    0.98 * 0.75 / 100.0,  // V
+    2.4 * 0.75 / 100.0,   // W
+    0.15 * 0.75 / 100.0,  // X
+    2.0 * 0.75 / 100.0,   // Y
+    0.074 * 0.75 / 100.0, // Z
+    20.0 / 100.0,         // space
+    5.0 / 100.0,          // other
 ];
 
 // Compute a score for letter counts similarity to English text.
-//
-// Use the scalar product of the vectors as the score.
-// It's higher when:
-// - the vectors are nearly colinear (that is, similar weights distribution),
-// - the proportion of letters (and space) in the text is higher.
+// Use the opposite chi-squared value, so that higher is better.
+// https://en.wikipedia.org/wiki/Chi-squared_test#Applications
 fn eng_freq_score(text: &str) -> f32 {
-    let freqs = letter_freqs(text);
-    zip(freqs, ENGLISH_FREQS).map(|(x, y)| x * y).sum()
+    let freqs = cat_freqs(text);
+    zip(freqs, ENGLISH_FREQS)
+        .map(|(got, exp)| -(got - exp).powf(2.0) / exp)
+        .sum()
 }
 
 #[cfg(test)]
@@ -139,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    //#[ignore]
+    #[ignore]
     fn debug() {
         let cth = "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736";
         let ct = hex::decode(cth).unwrap();
@@ -148,6 +145,6 @@ mod tests {
                 println!("{} {:?}", res.score, res.pt);
             }
         }
-        assert!(false);
+        panic!() // so that the above gets printed out
     }
 }
