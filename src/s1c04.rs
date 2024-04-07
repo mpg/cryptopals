@@ -8,16 +8,7 @@ pub fn find_sxor(filename: &str) -> Option<s1c03::SXorCracked> {
         .lines()
         .filter_map(|l| hex::decode(l).ok())
         .filter_map(|ct| s1c03::sxor_crack(&ct))
-        .fold(None, |cur, new| match cur {
-            None => Some(new),
-            Some(c) => {
-                if c.score > new.score {
-                    Some(c)
-                } else {
-                    Some(new)
-                }
-            }
-        })
+        .min_by_key(|c| c.badness)
 }
 
 #[cfg(test)]

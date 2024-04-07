@@ -4,7 +4,7 @@ use std::iter::zip;
 pub struct SXorCracked {
     pub key: u8,
     pub pt: String,
-    pub score: f32,
+    pub badness: u32,
 }
 
 // Cracks a ciphertext encrypted with single-byte XOR,
@@ -16,23 +16,14 @@ pub struct SXorCracked {
 pub fn sxor_crack(ct: &[u8]) -> Option<SXorCracked> {
     (0..=255)
         .filter_map(|key| sxor_try(key, ct))
-        .fold(None, |cur, new| match cur {
-            None => Some(new),
-            Some(c) => {
-                if c.score > new.score {
-                    Some(c)
-                } else {
-                    Some(new)
-                }
-            }
-        })
+        .min_by_key(|res| res.badness)
 }
 
 // Trial decryption with one key
 fn sxor_try(key: u8, ct: &[u8]) -> Option<SXorCracked> {
     let pt = sxor_decrypt(key, ct)?;
     Some(SXorCracked {
-        score: eng_freq_score(&pt),
+        badness: eng_freq_badness(&pt),
         key,
         pt,
     })
@@ -101,14 +92,15 @@ const ENGLISH_FREQS: [f32; 28] = [
     5.0 / 100.0,          // other
 ];
 
-// Compute a score for letter counts similarity to English text.
-// Use the opposite chi-squared value, so that higher is better.
+// Diffence between candidate and reference using chi-squared.
 // https://en.wikipedia.org/wiki/Chi-squared_test#Applications
-fn eng_freq_score(text: &str) -> f32 {
+// Convert to u32 as f32 does not implement std:cmp::Ord.
+fn eng_freq_badness(text: &str) -> u32 {
     let freqs = cat_freqs(text);
-    zip(freqs, ENGLISH_FREQS)
-        .map(|(got, exp)| -(got - exp).powf(2.0) / exp)
-        .sum()
+    (zip(freqs, ENGLISH_FREQS)
+        .map(|(got, exp)| (got - exp).powf(2.0) / exp)
+        .sum::<f32>()
+        * 100.0) as u32
 }
 
 #[cfg(test)]
@@ -142,7 +134,7 @@ mod tests {
         let ct = hex::decode(cth).unwrap();
         for key in 0..=255 {
             if let Some(res) = sxor_try(key, &ct) {
-                println!("{} {:?}", res.score, res.pt);
+                println!("{} {:?}", res.badness, res.pt);
             }
         }
         panic!() // so that the above gets printed out
