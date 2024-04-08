@@ -1,3 +1,6 @@
+use crate::s1c03::sxor_crack;
+use crate::s1c05::rep_xor;
+
 #[derive(PartialEq, Debug)]
 pub struct RepXorCracked {
     pub key: Vec<u8>,
@@ -6,7 +9,11 @@ pub struct RepXorCracked {
 
 pub fn crack_rep_xor(ct: &[u8]) -> Option<RepXorCracked> {
     let key_size = guess_key_size(ct);
-    todo!("Crack ciphertext now that we now key size is {}", key_size);
+    let slices = transpose(ct, key_size);
+    let key = guess_key(&slices)?;
+    let pt_bytes = rep_xor(&key, ct);
+    let pt = String::from_utf8(pt_bytes).unwrap();
+    Some(RepXorCracked { key, pt })
 }
 
 // Average hamming distance between a char and that one block away.
@@ -23,6 +30,21 @@ fn avg_hamming_dst(ct: &[u8], bs: usize) -> u32 {
 
 fn guess_key_size(ct: &[u8]) -> usize {
     (2..42).min_by_key(|&bs| avg_hamming_dst(ct, bs)).unwrap()
+}
+
+fn transpose(ct: &[u8], bs: usize) -> Vec<Vec<u8>> {
+    let mut out: Vec<Vec<u8>> = vec![vec![]; bs];
+    (0..ct.len()).for_each(|i| out[i % bs].push(ct[i]));
+    out
+}
+
+fn guess_key(slices: &[Vec<u8>]) -> Option<Vec<u8>> {
+    let mut key = vec![0; slices.len()];
+    for i in 0..key.len() {
+        let sol = sxor_crack(&slices[i])?;
+        key[i] = sol.key;
+    }
+    Some(key)
 }
 
 #[cfg(test)]
@@ -44,7 +66,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn challenge() {
         let ct = read_ct();
         let key = b"Terminator X: Bring the noise".to_vec();
