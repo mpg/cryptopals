@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# install: (cd .git/hooks && ln -s ../../pre-commit)
+
+set -eu
+
+cargo test
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
