@@ -1,5 +1,15 @@
 pub fn pkcs7_pad(raw: &[u8], block_size: usize) -> Vec<u8> {
-    todo!("pad {:?} to {:?}", raw, block_size);
+    assert!(block_size < 256);
+
+    let last_block_used = raw.len() % block_size;
+    let pad_len = block_size - last_block_used;
+    let pad_value = pad_len as u8;
+    let total_size = raw.len() + pad_len;
+
+    let mut padded = Vec::with_capacity(total_size);
+    padded.extend_from_slice(raw);
+    padded.resize(total_size, pad_value);
+    padded
 }
 
 #[cfg(test)]
@@ -7,7 +17,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn challenge() {
         let input = [0; 8];
         let output = [
@@ -21,7 +30,7 @@ mod tests {
             vec![0, 0, 0, 0, 0, 0, 0, 1],
         ];
         for i in 0..8 {
-            assert_eq!(pkcs7_pad(&input[0..=i], 8), output[i]);
+            assert_eq!(pkcs7_pad(&input[0..i], 8), output[i]);
         }
 
         let in10 = [13; 10];
