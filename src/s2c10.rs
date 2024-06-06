@@ -1,5 +1,28 @@
+use aes::cipher::{generic_array::GenericArray, BlockDecrypt, BlockSizeUser, KeyInit};
+use aes::Aes128;
+use std::iter::zip;
+
 pub fn aes_128_cbc_decrypt(key: &[u8], iv: &[u8], ct: &[u8]) -> Option<Vec<u8>> {
-    todo!("Decrypt {:?}... using {:?}+{:?}...", ct[0], key[0], iv[0]);
+    let cipher = Aes128::new_from_slice(key).ok()?;
+
+    let block_size = Aes128::block_size();
+    if ct.len() % block_size != 0 || iv.len() != block_size {
+        return None;
+    }
+
+    let mut pt = Vec::new();
+    let mut prev = iv;
+    for i in (0..ct.len()).step_by(block_size) {
+        let j = i + block_size;
+        let in_block = GenericArray::from_slice(&ct[i..j]);
+        let mut out_block = Default::default();
+        cipher.decrypt_block_b2b(in_block, &mut out_block);
+        let pt_block = zip(out_block, prev).map(|(x, &y)| x ^ y);
+        pt.extend(pt_block);
+        prev = &ct[i..j];
+    }
+
+    Some(pt)
 }
 
 #[cfg(test)]
@@ -15,7 +38,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn challenge() {
         let ct = read_ct();
         let exp = std::fs::read("data/10-pt.txt").unwrap();
@@ -31,7 +53,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn bad_len() {
         let s15 = b"WHITE SUBMARINE";
         let s16 = b"YELLOW SUBMARINE";
