@@ -62,12 +62,20 @@ mod oracle {
     }
 }
 
+use crate::s1c08::count_rep16;
 use oracle::Oracle;
 
 // guess which mode is used by the Oracle
 // victim.mode is private and can't be read
-pub fn attack(_victim: Oracle) -> Mode {
-    todo!("guess which mode the victim is using");
+pub fn attack(victim: Oracle) -> Mode {
+    let three_identical_blocks = [0; 48];
+    let out = victim.process(&three_identical_blocks);
+    let repeated_blocks = count_rep16(&out);
+
+    match repeated_blocks {
+        0 => Mode::CBC,
+        _ => Mode::ECB,
+    }
 }
 
 #[cfg(test)]
@@ -75,7 +83,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn challenge() {
         for _ in 0..128 {
             let mode = Mode::rand();

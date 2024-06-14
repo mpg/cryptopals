@@ -9,7 +9,7 @@ fn block16(ct: &[u8], i: usize) -> &[u8] {
     &ct[(16 * i)..(16 * i + 16)]
 }
 
-fn count_rep16(ct: &[u8]) -> usize {
+pub fn count_rep16(ct: &[u8]) -> usize {
     (0..(ct.len() / 16))
         .flat_map(|i| (0..i).map(move |j| (i, j)))
         .filter(|(i, j)| block16(ct, *i) == block16(ct, *j))
