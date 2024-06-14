@@ -19,14 +19,13 @@ pub fn aes_128_cbc_decrypt(key: &[u8], iv: &[u8], ct: &[u8]) -> Option<Vec<u8>> 
 
     let mut pt = Vec::new();
     let mut prev = iv;
-    for i in (0..ct.len()).step_by(block_size) {
-        let j = i + block_size;
-        let in_block = GenericArray::from_slice(&ct[i..j]);
+    for ct_block in ct.chunks_exact(block_size) {
+        let in_block = GenericArray::from_slice(ct_block);
         let mut out_block = Default::default();
         cipher.decrypt_block_b2b(in_block, &mut out_block);
         let pt_block = zip(out_block, prev).map(|(x, &y)| x ^ y);
         pt.extend(pt_block);
-        prev = &ct[i..j];
+        prev = ct_block;
     }
 
     Some(pt)
@@ -38,9 +37,8 @@ pub fn aes_128_cbc_encrypt(key: &[u8], iv: &[u8], pt: &[u8]) -> Option<Vec<u8>> 
 
     let mut ct = Vec::new();
     let mut prev = iv.to_vec();
-    for i in (0..pt.len()).step_by(block_size) {
-        let j = i + block_size;
-        let in_block: Vec<_> = zip(&pt[i..j], &prev).map(|(&x, &y)| x ^ y).collect();
+    for pt_block in pt.chunks_exact(block_size) {
+        let in_block: Vec<_> = zip(pt_block, &prev).map(|(&x, &y)| x ^ y).collect();
         let in_block = GenericArray::from_slice(&in_block);
         let mut out_block = Default::default();
         cipher.encrypt_block_b2b(in_block, &mut out_block);

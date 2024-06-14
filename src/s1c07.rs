@@ -18,9 +18,8 @@ fn aes_128_ecb(key: &[u8], inp: &[u8], way: Way) -> Option<Vec<u8>> {
     }
 
     let mut out = Vec::new();
-    for i in (0..inp.len()).step_by(block_size) {
-        let j = i + block_size;
-        let in_block = GenericArray::from_slice(&inp[i..j]);
+    for in_chunk in inp.chunks_exact(block_size) {
+        let in_block = GenericArray::from_slice(in_chunk);
         let mut out_block = Default::default();
         match way {
             Encrypt => cipher.encrypt_block_b2b(in_block, &mut out_block),
