@@ -24,7 +24,7 @@ mod oracle {
             clear.extend_from_slice(&self.content);
 
             // Use random padding; we could use PKCS7 or any other
-            // deterministic padding, this is just ot illustrate that the
+            // deterministic padding, this is just to illustrate that the
             // attacker doesn't need any knowledge of the padding used.
             let mut padding = [0u8; 16];
             thread_rng().fill(&mut padding[..]);
@@ -38,10 +38,40 @@ mod oracle {
 
 use oracle::Oracle;
 
+// Find the length of the content hidden in the Oracle.
+// We need to know that the padding length is between 1 and 16
+// (that is, a full block of padding is inserted if the length
+// before padding was already a multiple of 16).
+// (And contrary to the instructions we assume
+// we already know the block length is 16.)
+fn attack_len(victim: Oracle) -> usize {
+    let base = victim.process(b"").len();
+    let mybytes = [0; 16];
+    let mut len = 1;
+    loop {
+        if victim.process(&mybytes[..len]).len() != base {
+            break;
+        }
+        len += 1;
+    }
+
+    // Last ciphertext had length base + 16 and cleartext consisted of:
+    // mybytes + content + 16 bytes of padding, so
+    // len + content_len + 16 = base + 16.
+    base - len
+}
+
 // Find the content hidden in the Oracle
 // victim.content is private and can't be read
-pub fn attack(_victim: Oracle) -> Vec<u8> {
-    todo!("guess the content hidden by the victim");
+pub fn attack(victim: Oracle) -> Vec<u8> {
+    let len = attack_len(victim);
+    let content = Vec::with_capacity(len);
+
+    while content.len() != len {
+        // todo: guess each character
+    }
+
+    content
 }
 
 #[cfg(test)]
@@ -60,6 +90,15 @@ Did you stop? No, I just drove by
         for _ in 0..10 {
             let oracle = Oracle::new(content);
             assert_eq!(attack(oracle), content);
+        }
+    }
+
+    #[test]
+    fn len() {
+        let content = [0; 33];
+        for l in 0..=content.len() {
+            let oracle = Oracle::new(&content[..l]);
+            assert_eq!(attack_len(oracle), l);
         }
     }
 }
