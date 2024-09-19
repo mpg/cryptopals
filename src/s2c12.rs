@@ -44,7 +44,7 @@ use oracle::Oracle;
 // before padding was already a multiple of 16).
 // (And contrary to the instructions we assume
 // we already know the block length is 16.)
-fn attack_len(victim: Oracle) -> usize {
+fn attack_len(victim: &Oracle) -> usize {
     let base = victim.process(b"").len();
     let mybytes = [0; 16];
     let mut len = 1;
@@ -63,12 +63,34 @@ fn attack_len(victim: Oracle) -> usize {
 
 // Find the content hidden in the Oracle
 // victim.content is private and can't be read
-pub fn attack(victim: Oracle) -> Vec<u8> {
+pub fn attack(victim: &Oracle) -> Vec<u8> {
     let len = attack_len(victim);
-    let content = Vec::with_capacity(len);
+    println!("final length: {}", len);
+    let mut content = Vec::with_capacity(len);
 
+    let mut input = Vec::with_capacity(len + 16);
     while content.len() != len {
-        // todo: guess each character
+        // Left-pad content to a length that's 15 mod 16,
+        let pad_len = 15 - content.len() % 16;
+        input.clear();
+        input.resize(pad_len, 0);
+
+        // Establish a reference where the last byte of the block
+        // is the one the next byte to guess from the content.
+        let target_len = input.len() + content.len() + 1;
+        let target = &victim.process(&input)[..target_len];
+
+        // Append what we already know then
+        // try all possible values for the last byte.
+        input.extend_from_slice(&content);
+        for b in 0u8..=255 {
+            input.push(b);
+            if victim.process(&input)[..target.len()] == *target {
+                content.push(b);
+                break;
+            }
+            input.pop();
+        }
     }
 
     content
@@ -79,7 +101,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn challenge() {
         let content = b"Rollin' in my 5.0
 With my rag-top down so my hair can blow
@@ -89,7 +110,7 @@ Did you stop? No, I just drove by
         // try it a couple of times to show it works with any key
         for _ in 0..10 {
             let oracle = Oracle::new(content);
-            assert_eq!(attack(oracle), content);
+            assert_eq!(attack(&oracle), content);
         }
     }
 
@@ -98,7 +119,7 @@ Did you stop? No, I just drove by
         let content = [0; 33];
         for l in 0..=content.len() {
             let oracle = Oracle::new(&content[..l]);
-            assert_eq!(attack_len(oracle), l);
+            assert_eq!(attack_len(&oracle), l);
         }
     }
 }
