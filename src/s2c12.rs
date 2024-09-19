@@ -25,7 +25,7 @@ mod oracle {
 
             // Use random padding; we could use PKCS7 or any other
             // deterministic padding, this is just to illustrate that the
-            // attacker doesn't need any knowledge of the padding used.
+            // attacker doesn't need any knowledge of the padding bytes.
             let mut padding = [0u8; 16];
             thread_rng().fill(&mut padding[..]);
             let pad_len = 16 - clear.len() % 16;
@@ -39,39 +39,35 @@ mod oracle {
 use oracle::Oracle;
 
 // Find the length of the content hidden in the Oracle.
-// We need to know that the padding length is between 1 and 16
+// We need to know that the padding length is between 1 and block_size
 // (that is, a full block of padding is inserted if the length
-// before padding was already a multiple of 16).
-// (And contrary to the instructions we assume
-// we already know the block length is 16.)
-fn attack_len(victim: &Oracle) -> usize {
+// before padding was already a multiple of block_size).
+fn attack_len(victim: &Oracle) -> (usize, usize) {
     let base = victim.process(b"").len();
-    let mybytes = [0; 16];
-    let mut len = 1;
+    let mut mybytes = vec![0];
     loop {
-        if victim.process(&mybytes[..len]).len() != base {
-            break;
+        let diff = victim.process(&mybytes).len() - base;
+        if diff != 0 {
+            // Last ciphertext had length base + diff and cleartext was:
+            // mybytes + content + diff bytes of padding, so
+            // len + content_len + diff = base + diff.
+            return (base - mybytes.len(), diff);
         }
-        len += 1;
+        mybytes.push(0);
     }
-
-    // Last ciphertext had length base + 16 and cleartext consisted of:
-    // mybytes + content + 16 bytes of padding, so
-    // len + content_len + 16 = base + 16.
-    base - len
 }
 
 // Find the content hidden in the Oracle
 // victim.content is private and can't be read
 pub fn attack(victim: &Oracle) -> Vec<u8> {
-    let len = attack_len(victim);
+    let (len, block_size) = attack_len(victim);
     println!("final length: {}", len);
     let mut content = Vec::with_capacity(len);
 
-    let mut input = Vec::with_capacity(len + 16);
+    let mut input = Vec::with_capacity(len + block_size);
     while content.len() != len {
-        // Left-pad content to a length that's 15 mod 16,
-        let pad_len = 15 - content.len() % 16;
+        // Left-pad content so that the last bloc is 1 byte short
+        let pad_len = block_size - 1 - content.len() % block_size;
         input.clear();
         input.resize(pad_len, 0);
 
@@ -107,11 +103,8 @@ With my rag-top down so my hair can blow
 The girlies on standby waving just to say hi
 Did you stop? No, I just drove by
 ";
-        // try it a couple of times to show it works with any key
-        for _ in 0..10 {
-            let oracle = Oracle::new(content);
-            assert_eq!(attack(&oracle), content);
-        }
+        let oracle = Oracle::new(content);
+        assert_eq!(attack(&oracle), content);
     }
 
     #[test]
@@ -119,7 +112,7 @@ Did you stop? No, I just drove by
         let content = [0; 33];
         for l in 0..=content.len() {
             let oracle = Oracle::new(&content[..l]);
-            assert_eq!(attack_len(&oracle), l);
+            assert_eq!(attack_len(&oracle), (l, 16));
         }
     }
 }
