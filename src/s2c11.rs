@@ -67,7 +67,7 @@ use oracle::Oracle;
 
 // guess which mode is used by the Oracle
 // victim.mode is private and can't be read
-pub fn attack(victim: Oracle) -> Mode {
+pub fn attack(victim: &Oracle) -> Mode {
     let three_identical_blocks = [0; 48];
     let out = victim.process(&three_identical_blocks);
     let repeated_blocks = count_rep16(&out);
@@ -87,7 +87,7 @@ mod tests {
         for _ in 0..128 {
             let mode = Mode::rand();
             let oracle = Oracle::new(mode);
-            assert_eq!(attack(oracle), mode);
+            assert_eq!(attack(&oracle), mode);
         }
     }
 }
