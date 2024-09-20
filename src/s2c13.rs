@@ -58,9 +58,18 @@ mod oracle {
 
 use oracle::Oracle;
 
-// Forge an encrypted profile will have role=admin
+// Forge a token (encrypted profile) with role=admin
 pub fn attack(victim: &Oracle) -> Vec<u8> {
-    victim.encrypted_profile_for("not@implemented.yet")
+    // 0               1               2               3               4
+    // 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    // email=xxxxxxxxxxadmin00000000000@example.xxxxxxxxx&uid=123&role=user000000000000
+    //                 <---- copy ---->                                <---- paste --->
+    let email = "xxxxxxxxxxadmin\0\0\0\0\0\0\0\0\0\0\0@example.xxxxxxxxx";
+    let mut token = victim.encrypted_profile_for(email);
+    token.truncate(0x40);
+    token.extend_from_within(0x10..0x20);
+
+    token
 }
 
 #[cfg(test)]
@@ -68,7 +77,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn challenge() {
         let victim = Oracle::new();
         let forged_token = attack(&victim);
