@@ -60,16 +60,39 @@ struct OracleWrapper<'a> {
     sentinel: Vec<u8>,
 }
 
+fn gcd(a: usize, b: usize) -> usize {
+    if a == 0 {
+        b
+    } else if b == 0 {
+        a
+    } else if a >= b {
+        gcd(a - b, b)
+    } else {
+        gcd(b - a, a)
+    }
+}
+
 impl<'a> OracleWrapper<'a> {
     fn new(oracle: &'a Oracle) -> Self {
-        let mut sentinel = Vec::new();
+        // Guess the block size - this might overshoot but that's OK,
+        // we'll just be using a sentinel larger than necessary.
+        // (10 iterations means roughly 1 in 2^10 chance of getting an extra
+        // factor 2, also 1 in 3^10 of getting an extra factor 3, etc.)
+        let mut block_size = oracle.process(b"").len();
+        for _ in 1..10 {
+            block_size = gcd(block_size, oracle.process(b"").len());
+        }
 
+        // Compute our sentinel, see the definition of OracleWrapper.
+        let mut sentinel = Vec::new();
         for v in 0..=1u8 {
-            let blocks = [v; 48];
+            let blocks = vec![v; 3 * block_size];
             let out = oracle.process(&blocks);
-            for i in (0..(out.len() - 16)).step_by(16) {
-                if out[i..(i + 16)] == out[(i + 16)..(i + 32)] {
-                    sentinel.extend_from_slice(&out[i..(i + 16)]);
+            for i in (0..(out.len() - block_size)).step_by(block_size) {
+                let cur_block = &out[i..(i + block_size)];
+                let next_block = &out[(i + block_size)..(i + 2 * block_size)];
+                if cur_block == next_block {
+                    sentinel.extend_from_slice(cur_block);
                     break;
                 }
             }
@@ -79,16 +102,18 @@ impl<'a> OracleWrapper<'a> {
     }
 
     fn process(&self, input: &[u8]) -> Vec<u8> {
+        let block_size = self.sentinel.len() / 2;
+
         let mut ext_input = Vec::new();
-        ext_input.extend_from_slice(&[0u8; 16]);
-        ext_input.extend_from_slice(&[1u8; 16]);
+        ext_input.extend_from_slice(&vec![0u8; block_size]);
+        ext_input.extend_from_slice(&vec![1u8; block_size]);
         ext_input.extend_from_slice(input);
 
         loop {
             let out = self.oracle.process(&ext_input);
-            for i in (0..(out.len() - 32)).step_by(16) {
-                if out[i..(i + 32)] == self.sentinel {
-                    return out[i + 32..].to_owned();
+            for i in (0..(out.len() - 2 * block_size)).step_by(block_size) {
+                if out[i..(i + 2 * block_size)] == self.sentinel {
+                    return out[i + 2 * block_size..].to_owned();
                 }
             }
         }
@@ -99,9 +124,6 @@ impl<'a> OracleWrapper<'a> {
 // except:
 // - some types (Oracle vs OracleWrapper)
 // - the first line of attack(), wrapping the input Oracle (marked [sic])
-//
-// Inconsistency note: OracleWrapper assumes the block size is 16,
-// but attack_len() guesses it again.
 
 // Find the length of the content hidden in the Oracle.
 // We need to know that the padding length is between 1 and block_size
