@@ -1,5 +1,10 @@
+pub trait DeterministicOracle {
+    fn process(&self, input: &[u8]) -> Vec<u8>;
+}
+
 // use a separate module for privacy
 mod oracle {
+    use super::DeterministicOracle;
     use crate::s1c07::aes_128_ecb_encrypt;
     use rand::{thread_rng, Rng};
 
@@ -17,8 +22,10 @@ mod oracle {
 
             Self { content, key }
         }
+    }
 
-        pub fn process(&self, input: &[u8]) -> Vec<u8> {
+    impl DeterministicOracle for Oracle {
+        fn process(&self, input: &[u8]) -> Vec<u8> {
             let mut clear = Vec::new();
             clear.extend_from_slice(input);
             clear.extend_from_slice(&self.content);
@@ -42,7 +49,7 @@ pub use oracle::Oracle;
 // We need to know that the padding length is between 1 and block_size
 // (that is, a full block of padding is inserted if the length
 // before padding was already a multiple of block_size).
-fn attack_len(victim: &Oracle) -> (usize, usize) {
+fn attack_len<T: DeterministicOracle>(victim: &T) -> (usize, usize) {
     let base = victim.process(b"").len();
     let mut mybytes = vec![0];
     loop {
@@ -59,7 +66,7 @@ fn attack_len(victim: &Oracle) -> (usize, usize) {
 
 // Find the content hidden in the Oracle
 // victim.content is private and can't be read
-pub fn attack(victim: &Oracle) -> Vec<u8> {
+pub fn attack<T: DeterministicOracle>(victim: &T) -> Vec<u8> {
     let (len, block_size) = attack_len(victim);
     println!("final length: {}", len);
     let mut content = Vec::with_capacity(len);

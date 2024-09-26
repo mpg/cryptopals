@@ -41,6 +41,9 @@ mod oracle {
 
 use oracle::Oracle;
 
+use crate::s2c12::attack as deterministic_attack;
+use crate::s2c12::DeterministicOracle;
+
 // Wrap a non-deterministic Oracle into a deterministic one.
 //
 // Get rid of the random part by using a sentinel consisting of the
@@ -100,7 +103,9 @@ impl<'a> OracleWrapper<'a> {
 
         Self { oracle, sentinel }
     }
+}
 
+impl<'a> DeterministicOracle for OracleWrapper<'a> {
     fn process(&self, input: &[u8]) -> Vec<u8> {
         let block_size = self.sentinel.len() / 2;
 
@@ -120,63 +125,10 @@ impl<'a> OracleWrapper<'a> {
     }
 }
 
-// The two functions below are identical copies of those in s2c12,
-// except:
-// - some types (Oracle vs OracleWrapper)
-// - the first line of attack(), wrapping the input Oracle (marked [sic])
-
-// Find the length of the content hidden in the Oracle.
-// We need to know that the padding length is between 1 and block_size
-// (that is, a full block of padding is inserted if the length
-// before padding was already a multiple of block_size).
-fn attack_len(victim: &OracleWrapper) -> (usize, usize) {
-    let base = victim.process(b"").len();
-    let mut mybytes = vec![0];
-    loop {
-        let diff = victim.process(&mybytes).len() - base;
-        if diff != 0 {
-            // Last ciphertext had length base + diff and cleartext was:
-            // mybytes + content + diff bytes of padding, so
-            // len + content_len + diff = base + diff.
-            return (base - mybytes.len(), diff);
-        }
-        mybytes.push(0);
-    }
-}
-
 // Find the content hidden in the Oracle
 // victim.content is private and can't be read
 pub fn attack(victim: &Oracle) -> Vec<u8> {
-    let victim = OracleWrapper::new(victim); // [sic]
-    let (len, block_size) = attack_len(&victim);
-    let mut content = Vec::with_capacity(len);
-
-    let mut input = Vec::with_capacity(len + block_size);
-    while content.len() != len {
-        // Left-pad content so that the last bloc is 1 byte short
-        let pad_len = block_size - 1 - content.len() % block_size;
-        input.clear();
-        input.resize(pad_len, 0);
-
-        // Establish a reference where the last byte of the block
-        // is the one the next byte to guess from the content.
-        let target_len = input.len() + content.len() + 1;
-        let target = &victim.process(&input)[..target_len];
-
-        // Append what we already know then
-        // try all possible values for the last byte.
-        input.extend_from_slice(&content);
-        for b in 0u8..=255 {
-            input.push(b);
-            if victim.process(&input)[..target.len()] == *target {
-                content.push(b);
-                break;
-            }
-            input.pop();
-        }
-    }
-
-    content
+    deterministic_attack(&OracleWrapper::new(victim))
 }
 
 #[cfg(test)]
