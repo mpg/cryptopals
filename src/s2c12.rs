@@ -36,7 +36,7 @@ mod oracle {
     }
 }
 
-use oracle::Oracle;
+pub use oracle::Oracle;
 
 // Find the length of the content hidden in the Oracle.
 // We need to know that the padding length is between 1 and block_size
